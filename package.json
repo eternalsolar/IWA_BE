@@ -4,10 +4,14 @@
   "description": "",
   "main": "dist/app.js",
   "scripts": {
-    "start": "tsc && node dist/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "postinstall": "tsc"
-  },
+    "build": "tsc && npm run start",
+    "start": "node dist/index.js",
+    "delete": "rmdir dist /s /q",
+    "postinstall": "tsc",
+    "watch-node": "nodemon dist/index.js",
+    "watch-ts": "tsc -w",
+    "deploy": "git add . && git commit -m Heroku && git push heroku master"
+},
   "author": "Esolar",
   "license": "ISC",
   "devDependencies": {
