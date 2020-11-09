@@ -13,5 +13,6 @@ export class Article   {
                 this.content = content;
                 this.order = order;
             }
+        
     };
 

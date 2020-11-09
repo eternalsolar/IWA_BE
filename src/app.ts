@@ -13,11 +13,43 @@ const client = redis.createClient({
     password: '1234@Qwe',
 })
 let a: Article[] = [];
+app.get('/article/:link', (req, res) => {
+    let Crawler = require('crawler');
+    let extractor = require('unfluff');
+    let link = req.params['link'];
+    client.get(req.params['link'], (err, value) => {
+        if (value == null) {
+            let c = new Crawler();
+            c.queue([{
+                jar: true,
+                uri: link,
+                callback: function (error, res, done) {
+                    if (error) {
+                        console.log(error);
+                    } else {
+                        let $
+                        if($){
+                        let data = extractor.lazy($.html());
+                        let ar = new Article($.title(), 0, data.image(), '', '', data.text());
+                        res.send(ar);
+                        }
+                    }
+                    done();
+                }
+            }]);
+        }
+        else {
+            let ar = JSON.parse(value);
+            res.send(ar);
+        }
 
+    });
+})
 app.get('/:page', (req, res) => {
     let response = res;
     let result = [];
     let Crawler = require('crawler');
+    let extractor = require('unfluff');
     let c = new Crawler({
         maxConnections: 30,
         // This will be called for each crawled page
@@ -45,12 +77,15 @@ app.get('/:page', (req, res) => {
                                                 reject(error);
                                             } else {
                                                 let $$ = res.$;
-                                                let mainPost = handleMainPost($$);
-                                                let thumbnail = handleThumbnail($$, mainPost);
-                                                let ar = new Article(aTag.text(), order,
-                                                    handleImageLink($$, thumbnail, link), mainPost.text(), link, mainPost.text());
+                                                // let mainPost = handleMainPost($$);
+                                                if($$){
+                                                let data = extractor.lazy($$.html());
+                                                // let thumbnail = handleThumbnail($$, mainPost);
+                                                let ar = new Article(aTag.text(), order, data.image(), handleExcerpt(data.description()), link, handleContent(data.text()));
+                                                //     handleImageLink($$, thumbnail, link), mainPost.text(), link, mainPost.text());
                                                 client.set(link, JSON.stringify(ar));
                                                 result.push(ar);
+                                                }
                                                 resolve();
                                             }
                                             done();
@@ -60,7 +95,6 @@ app.get('/:page', (req, res) => {
                                 else {
                                     let ar = JSON.parse(value);
                                     ar.order = order;
-                                    ar.link = link;
                                     client.set(link, JSON.stringify(ar));
                                     result.push(ar);
                                     resolve();
@@ -74,7 +108,7 @@ app.get('/:page', (req, res) => {
                     done();
                 })
                 promise.then(() => {
-                    response.send(result.sort((a: Article, b: Article) => a.order - b.order).map((a:Article) => {
+                    response.send(result.sort((a: Article, b: Article) => a.order - b.order).map((a: Article) => {
                         return a;
                     }));
                 });
@@ -90,18 +124,18 @@ app.get('/:page', (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000, () => {
-    client.flushdb(function (err, succeeded) {
-        console.log(succeeded); // will be true if successfull
-    });
-
+    // client.flushdb(function (err, succeeded) {
+    //     console.log(succeeded); // will be true if successfull
+    // });
+    // client.del('https://apnews.com/article/joe-biden-wins-white-house-ap-fd58df73aa677acb74fce2a69adb71f9');
     console.log(`server is listening on ${port}`);
 }).on('error', function (err) {
     console.log(err);
 });
-function handleImageLink($: any, image: any, url: string): string {
-    
+let handleImageLink = ($: any, image: any, url: string): string  => {
+
     let link = new URL(url);
-    
+
     let parsed = psl.parse(link.hostname);
     switch (parsed.domain) {
         case HOSTNAME.FACEBOOK:
@@ -117,7 +151,7 @@ function handleImageLink($: any, image: any, url: string): string {
             let youtubeThumbnail = require('youtube-thumbnail');
             return youtubeThumbnail(url).high.url;
         default:
-            if(parsed.tld == 'github.io'){
+            if (parsed.tld == 'github.io') {
                 return ASSETS.GITHUB;
             }
             if (image) {
@@ -130,24 +164,16 @@ function handleImageLink($: any, image: any, url: string): string {
 
 }
 
-function handleMainPost($: any) {
-
-    let classArray = ['[id="main"]', 'main', '.main', '[role="main"]', 'article', '.article', '.post', '.post-container', '.content', '[id="content"]', 'body'];
-    let content = '';
-    let res = '';
-    while (content == '' && classArray.length > 0) {
-
-
-        res = classArray.shift();
-
-        content = $(res).text();
-
+let handleExcerpt = (data: string): string => {
+    if (data && data.length > 0) {
+        return data.split('. ')[0];
     }
-    return $(res);
-
+    else return '';
 }
-
-function handleThumbnail($: any, mainPost: any) {
+let handleContent = (data: string): any => {
+    return data.replace(/\n/g, '<br>');
+}
+let handleThumbnail = ($: any, mainPost: any) =>  {
     let imgList = mainPost.find('figure img').toArray();
 
     if (imgList.length == 0) {
